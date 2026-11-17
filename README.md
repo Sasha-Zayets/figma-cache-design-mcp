@@ -6,28 +6,20 @@ Designed specifically for AI coding agents to minimize LLM token consumption, av
 
 ---
 
-## Installation & Setup
+## Quick Start & MCP Client Configuration
 
-### 1. Build from Source
+No manual git clone or repository building is required. You can run `figma-cache-design-mcp` directly via `npx` in any MCP client (Claude Desktop, Cursor, Antigravity, Cline, Windsurf, etc.).
 
-```bash
-git clone <repo-url> figma-mcp
-cd figma-mcp
-npm install
-npm run build
-npm test
-```
+### 1. Configuration (`npx`)
 
-### 2. MCP Client Configuration
-
-Add `figma-cache-design-mcp` to your MCP client configuration (e.g., Claude Desktop, Cursor, Antigravity, or Cline):
+Add `figma-cache-design-mcp` to your MCP client configuration file:
 
 ```json
 {
   "mcpServers": {
     "figma-cache-design-mcp": {
-      "command": "node",
-      "args": ["/absolute/path/to/figma-mcp/dist/index.js"],
+      "command": "npx",
+      "args": ["-y", "figma-cache-design-mcp"],
       "env": {
         "FIGMA_TOKEN": "figd_your_personal_access_token",
         "FIGMA_CACHE_DIR": "/absolute/path/to/cache/directory",
@@ -39,9 +31,9 @@ Add `figma-cache-design-mcp` to your MCP client configuration (e.g., Claude Desk
 }
 ```
 
-### 3. Environment Variables
+### 2. Environment Variables
 - `FIGMA_TOKEN` *(required for Figma API requests)* — Personal Access Token from Figma (Settings ➔ Security ➔ Personal access tokens).
-- `FIGMA_CACHE_DIR` *(required)* — Directory path for the disk cache.
+- `FIGMA_CACHE_DIR` *(required)* — Absolute directory path for the local disk cache.
 - `FIGMA_CACHE_AUTO_CLEANUP` *(optional, default: `false`)* — Set to `"true"` to automatically delete files older than TTL. If `false`, files are never deleted automatically.
 - `FIGMA_CACHE_TTL` *(optional, default: stored forever)* — Time to live / retention period. Supported units: `s` (seconds), `m` (minutes), `h` (hours), `d` (days). Examples: `"30d"`, `"12h"`, `"45m"`, `"60s"`, or JSON `'{"value": 30, "unit": "d"}'`. By default, files are stored forever.
 
@@ -75,29 +67,31 @@ Cleans up expired Figma designs from disk cache based on configured TTL (`force?
 
 ---
 
-### B. CLI Usage (Pre-caching from Terminal)
+### B. CLI Usage (Pre-caching from Terminal via npx)
 
-You can pre-populate, inspect, or clean the local disk cache directly from your terminal:
+You can pre-populate, inspect, or clean the local disk cache directly from your terminal using `npx`:
 
 ```bash
 # Pre-cache desktop and mobile designs
-npm run cache -- --desktop "https://www.figma.com/design/<fileKey>/...?node-id=0-1" --mobile "https://www.figma.com/design/<fileKey>/...?node-id=99-100"
+npx -y figma-cache-design-mcp cache --desktop "https://www.figma.com/design/<fileKey>/...?node-id=0-1" --mobile "https://www.figma.com/design/<fileKey>/...?node-id=99-100"
 
 # Pre-cache multiple blocks or pages at once
-npm run cache -- "https://www.figma.com/design/<fileKey>/...?node-id=10-100" "https://www.figma.com/design/<fileKey>/...?node-id=20-200"
+npx -y figma-cache-design-mcp cache "https://www.figma.com/design/<fileKey>/...?node-id=10-100" "https://www.figma.com/design/<fileKey>/...?node-id=20-200"
 
 # Force refresh from Figma API
-npm run cache -- --refresh "https://www.figma.com/design/<fileKey>/...?node-id=10-100"
+npx -y figma-cache-design-mcp cache --refresh "https://www.figma.com/design/<fileKey>/...?node-id=10-100"
 
 # List all designs currently cached on disk
-npm run cache:list
+npx -y figma-cache-design-mcp list
 
 # Clean expired cache files based on TTL
-npm run cache:clean
+npx -y figma-cache-design-mcp clean
 
 # Force-clean all cached files
-npm run cache:clean -- --force
+npx -y figma-cache-design-mcp clean --force
 ```
+
+*(Note: ensure `FIGMA_TOKEN` and `FIGMA_CACHE_DIR` environment variables are exported in your terminal session when running CLI commands).*
 
 ---
 
