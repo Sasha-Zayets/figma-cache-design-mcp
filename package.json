@@ -1,0 +1,51 @@
+{
+  "name": "figma-cache-design-mcp",
+  "version": "1.0.0",
+  "description": "Cache-first Figma MCP server that delivers compact CSS-like block descriptions and design tokens",
+  "type": "module",
+  "main": "./dist/index.js",
+  "bin": {
+    "figma-cache-design-mcp": "./dist/index.js"
+  },
+  "files": [
+    "dist/**/*.js",
+    "dist/**/*.d.ts",
+    "!dist/tests/**",
+    "README.md",
+    "LICENSE"
+  ],
+  "keywords": [
+    "mcp",
+    "model-context-protocol",
+    "figma",
+    "figma-mcp",
+    "design-tokens",
+    "css",
+    "cache",
+    "ai-agent",
+    "cursor",
+    "claude"
+  ],
+  "license": "MIT",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "cache": "node dist/index.js cache",
+    "cache:list": "node dist/index.js list",
+    "cache:clean": "node dist/index.js clean",
+    "dev": "tsc --watch",
+    "test": "npm run build && node --test dist/tests/*.test.js",
+    "prepublishOnly": "npm run build && npm test"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^22.13.0",
+    "typescript": "^5.8.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
