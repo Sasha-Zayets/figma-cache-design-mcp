@@ -33,7 +33,11 @@ Add `figma-cache-design-mcp` to your MCP client configuration file:
 
 ### 2. Environment Variables
 - `FIGMA_TOKEN` *(required for Figma API requests)* — Personal Access Token from Figma (Settings ➔ Security ➔ Personal access tokens).
-- `FIGMA_CACHE_DIR` *(required)* — Absolute directory path for the local disk cache.
+- `FIGMA_CACHE_DIR` *(required)* — Directory path for the disk cache. Supports:
+  - **Relative paths to project root**: e.g., `".figma-cache"` or `"./.cache/figma"` (resolves relative to the active project folder / `process.cwd()`).
+  - **User home expansion**: e.g., `"~/.figma-cache"` (automatically expands to your user home directory on Mac, Linux, and Windows).
+  - **Absolute paths**: e.g., `"/Users/name/.cache/figma"` or `"C:\\cache\\figma"`.
+- `FIGMA_PROJECT_ROOT` *(optional)* — Explicit root path of the project when running in non-standard IDE environments (defaults to `WORKSPACE_FOLDER` or `process.cwd()`).
 - `FIGMA_CACHE_AUTO_CLEANUP` *(optional, default: `false`)* — Set to `"true"` to automatically delete files older than TTL. If `false`, files are never deleted automatically.
 - `FIGMA_CACHE_TTL` *(optional, default: stored forever)* — Time to live / retention period. Supported units: `s` (seconds), `m` (minutes), `h` (hours), `d` (days). Examples: `"30d"`, `"12h"`, `"45m"`, `"60s"`, or JSON `'{"value": 30, "unit": "d"}'`. By default, files are stored forever.
 

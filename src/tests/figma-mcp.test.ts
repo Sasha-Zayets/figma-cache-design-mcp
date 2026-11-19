@@ -303,6 +303,23 @@ describe("Cache-First & Subtree Lookup Scenarios", () => {
       process.env.FIGMA_CACHE_DIR = tmpDir;
       const manager = new CacheManager();
       assert.equal(manager.getCacheDir(), tmpDir);
+
+      // Relative path to current working directory / project root
+      process.env.FIGMA_CACHE_DIR = "./.figma-cache";
+      const relManager = new CacheManager();
+      assert.equal(relManager.getCacheDir(), path.resolve(process.cwd(), "./.figma-cache"));
+
+      // Relative path respecting FIGMA_PROJECT_ROOT
+      process.env.FIGMA_PROJECT_ROOT = "/custom/project/root";
+      process.env.FIGMA_CACHE_DIR = ".cache/figma";
+      const customRootMgr = new CacheManager();
+      assert.equal(customRootMgr.getCacheDir(), "/custom/project/root/.cache/figma");
+      delete process.env.FIGMA_PROJECT_ROOT;
+
+      // Home directory ~ expansion
+      process.env.FIGMA_CACHE_DIR = "~/.figma-cache";
+      const tildeMgr = new CacheManager();
+      assert.equal(tildeMgr.getCacheDir(), path.resolve(os.homedir(), ".figma-cache"));
     } finally {
       if (origEnv !== undefined) {
         process.env.FIGMA_CACHE_DIR = origEnv;

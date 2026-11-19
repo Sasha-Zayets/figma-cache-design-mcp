@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import {
   CacheManagerConfig,
@@ -120,7 +121,26 @@ export class CacheManager {
       );
     }
 
-    this.baseDir = path.resolve(rawDir);
+    // Resolve project root or current working directory:
+    // Support FIGMA_PROJECT_ROOT / PROJECT_ROOT / WORKSPACE_FOLDER / process.cwd()
+    const projectRoot =
+      process.env.FIGMA_PROJECT_ROOT?.trim() ||
+      process.env.PROJECT_ROOT?.trim() ||
+      process.env.WORKSPACE_FOLDER?.trim() ||
+      process.cwd();
+
+    // Expand home directory if starts with ~
+    let resolvedDir: string;
+    if (rawDir === "~" || rawDir.startsWith("~/") || rawDir.startsWith("~\\")) {
+      resolvedDir = path.resolve(os.homedir(), rawDir.slice(1).replace(/^[/\\]+/, ""));
+    } else if (path.isAbsolute(rawDir)) {
+      resolvedDir = path.normalize(rawDir);
+    } else {
+      // Relative path: resolve relative to project root
+      resolvedDir = path.resolve(projectRoot, rawDir);
+    }
+
+    this.baseDir = resolvedDir;
 
     // autoCleanup: defaults to false (files kept forever unless configured)
     if (autoCleanupSetting !== undefined) {
