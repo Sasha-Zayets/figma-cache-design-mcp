@@ -1,6 +1,6 @@
 {
   "name": "figma-cache-design-mcp",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "Cache-first Figma MCP server that delivers compact CSS-like block descriptions and design tokens",
   "type": "module",
   "main": "./dist/index.js",
