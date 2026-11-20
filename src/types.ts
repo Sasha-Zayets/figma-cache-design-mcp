@@ -125,6 +125,60 @@ export interface FigmaNode {
   // Component metadata
   componentId?: string;
   componentProperties?: Record<string, { type: string; value: string | boolean }>;
+
+  // Export settings
+  exportSettings?: Array<{
+    suffix?: string;
+    format?: string;
+    constraint?: { type: string; value: number };
+  }>;
+}
+
+export interface FigmaFileImagesApiResponse {
+  error?: boolean;
+  status?: number;
+  meta?: {
+    images?: Record<string, string>;
+  };
+}
+
+export interface FigmaRenderImagesApiResponse {
+  err?: string | null;
+  images?: Record<string, string | null>;
+}
+
+export type AssetKind = "image" | "svg";
+export type AssetTypesFilter = "all" | "images" | "icons";
+
+export interface DiscoveredAsset {
+  kind: AssetKind;
+  nodeId: string;
+  name: string;
+  width?: number;
+  height?: number;
+  imageRef?: string;
+  componentId?: string;
+  dedupeKey: string;
+}
+
+export interface ResolvedAssetResult {
+  asset: DiscoveredAsset;
+  fileKey: string;
+  cachePath: string;
+  outputPath?: string;
+  source: "cache" | "figma-api";
+  sizeBytes: number;
+  extension: string;
+  error?: string;
+}
+
+export interface GetAssetsInput extends ViewportLinksInput {
+  outputDir?: string;
+  types?: AssetTypesFilter;
+}
+
+export interface CacheDesignInput extends ViewportLinksInput {
+  includeAssets?: boolean;
 }
 
 export interface FigmaNodesApiResponse {

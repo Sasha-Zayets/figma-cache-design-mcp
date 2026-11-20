@@ -6,6 +6,7 @@ import {
   FigmaNode,
   FigmaPaint,
   FigmaTypeStyle,
+  ResolvedAssetResult,
   ResolvedNodeResult,
   ViewportEntry,
 } from "./types.js";
@@ -233,7 +234,7 @@ const VECTOR_PRIMITIVE_TYPES = new Set([
  * Checks whether a subtree represents an icon / pure SVG vector graphic
  * that should be collapsed into a single `[ICON/SVG]` node instead of expanding all vector paths.
  */
-function isCollapsibleVectorSubtree(node: FigmaNode): boolean {
+export function isCollapsibleVectorSubtree(node: FigmaNode): boolean {
   if (VECTOR_PRIMITIVE_TYPES.has(node.type)) {
     return true;
   }
@@ -811,6 +812,69 @@ export function formatCleanCacheSummary(
     }
   } else {
     lines.push("", "_No expired cache files found._");
+  }
+
+  return lines.join("\n");
+}
+
+function formatBytes(bytes: number): string {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${roundNum(bytes / 1024)} KB`;
+  return `${roundNum(bytes / (1024 * 1024))} MB`;
+}
+
+/**
+ * Formats a concise summary report for extracted/cached assets.
+ */
+export function formatAssetsReport(
+  results: ResolvedAssetResult[],
+  options?: { outputDir?: string; types?: string }
+): string {
+  const total = results.length;
+  const fromCache = results.filter((r) => !r.error && r.source === "cache").length;
+  const fromApi = results.filter((r) => !r.error && r.source === "figma-api").length;
+  const failed = results.filter((r) => Boolean(r.error)).length;
+
+  const lines: string[] = [
+    `## Extracted Figma Assets (${total})`,
+    `- **From Cache (0 API calls):** ${fromCache} | **Fetched from Figma API:** ${fromApi}${failed > 0 ? ` | **Failed:** ${failed}` : ""}`,
+  ];
+
+  if (options?.outputDir) {
+    lines.push(`- **Output Directory:** \`${options.outputDir}\``);
+  }
+  if (options?.types) {
+    lines.push(`- **Filter:** \`${options.types}\``);
+  }
+
+  if (total === 0) {
+    lines.push("", "_No matching image or SVG icon assets were found in the specified node(s)._");
+    return lines.join("\n");
+  }
+
+  lines.push("", "### Assets List:");
+  for (const item of results) {
+    const a = item.asset;
+    const sizeDim =
+      a.width !== undefined && a.height !== undefined
+        ? `${roundNum(a.width)}×${roundNum(a.height)}`
+        : "n/a";
+    const kindBadge = a.kind === "svg" ? "SVG" : item.extension.toUpperCase();
+
+    if (item.error) {
+      lines.push(
+        `- **[${a.nodeId}]** \`${kindBadge}\` **"${a.name}"** (${sizeDim}) — ❌ Error: ${item.error}`
+      );
+      continue;
+    }
+
+    const filePath = item.outputPath ?? item.cachePath;
+    const sourceBadge = item.source === "cache" ? "cache" : "figma-api";
+    lines.push(
+      `- **[${a.nodeId}]** \`${kindBadge}\` **"${a.name}"** (${sizeDim}, ${formatBytes(
+        item.sizeBytes
+      )}, ${sourceBadge})  \n  File: \`${filePath}\``
+    );
   }
 
   return lines.join("\n");

@@ -55,7 +55,8 @@ All link-based tools accept parameters in any combination (at least one of `desk
 - `refresh?: boolean` — Force refresh from Figma API, bypassing disk cache (`false` by default).
 
 #### 1. `cache_design`
-Downloads one or more Figma designs (whole pages or individual blocks/parts) and saves them to the local disk cache without dumping large CSS trees into the chat context. Once cached, `get_outline` and `get_block` can work with them (and any nested child elements) completely offline without making Figma API calls.
+Downloads one or more Figma designs (whole pages or individual blocks/parts) and saves them to the local disk cache without dumping large CSS trees into the chat context. Once cached, `get_outline`, `get_block`, and `get_assets` can work with them (and any nested child elements) without making Figma API calls.
+- `includeAssets?: boolean` — Optional (`false` by default). When `true`, also downloads and caches all raster images and SVG icons found in the design so subsequent `get_assets` calls require **0 Figma API requests**.
 
 #### 2. `get_outline`
 Downloads a whole page or section into cache and returns a compact outline of top-level frames/blocks with their IDs, names, dimensions (`W×H`), and ready-to-use links for `get_block`.
@@ -63,11 +64,20 @@ Downloads a whole page or section into cache and returns a compact outline of to
 #### 3. `get_block`
 Returns an aggregated **Design Tokens Summary** (colors, typography, spacing, radii, shadows) and a compact **CSS-like Layout Tree** for the block. If its parent page or section was already cached via `cache_design` or `get_outline`, the block is extracted directly from the local cache with zero API calls.
 
-#### 4. `list_cache`
+#### 4. `get_assets`
+Extracts raster images (`IMAGE` fills) and/or SVG icons from one or more Figma links — works with a link to a **single image/icon**, **multiple links (`urls`)**, a **block containing assets**, or an **entire page**.
+- `outputDir?: string` — Optional directory path (relative to project root or absolute) to copy the extracted assets into with clean, collision-free filenames (e.g., `hero-banner.png`, `arrow-icon.svg`).
+- `types?: "all" | "images" | "icons"` — Filter asset types (`"all"` by default).
+- **How it minimizes Figma API calls:**
+  - Node discovery and deduplication (by `imageRef` for raster images and `componentId` for icons) run locally on the cached JSON tree (**0 API calls**).
+  - Downloaded binaries are cached on disk under `<FIGMA_CACHE_DIR>/<fileKey>/assets/` (`refs/` and `nodes/`). Cached assets are served immediately with **0 Figma API calls**.
+  - Uncached raster images require only **1 API call per `fileKey`** (`GET /v1/files/:fileKey/images`), and uncached SVG icons are batched (**1 API call per 50 icons**). Binary downloads from S3 do not consume Figma API rate limits.
+
+#### 5. `list_cache`
 Lists all designs currently stored in the local MCP disk cache (`fileKey?: string` optional filter) along with node IDs, dimensions, timestamps, and ready-to-use URLs.
 
-#### 5. `clean_cache`
-Cleans up expired Figma designs from disk cache based on configured TTL (`force?: boolean` to remove all files, `fileKey?: string` to target a specific file).
+#### 6. `clean_cache`
+Cleans up expired Figma designs from disk cache based on configured TTL (`force?: boolean` to remove all cached JSON and asset files, `fileKey?: string` to target a specific file).
 
 ---
 
@@ -178,6 +188,7 @@ The official Figma MCP (and standard Figma REST API) was designed for design edi
 | **Caching Model** | None / ephemeral in-memory | Persistent disk cache + recursive subtree search |
 | **Figma API Rate Limits** | High risk during agent loops | Minimal (page fetched once, reused indefinitely) |
 | **Vector Icon Handling** | Dumps every vector path & coordinate | Collapsed to single `[ICON/SVG]` tag |
+| **Asset Extraction** | Manual / per-node API calls | Deduplicated, batched & disk-cached (`get_assets`) |
 | **Multi-Viewport Support** | Single URL per request | Native side-by-side `desktop` + `mobile` |
 | **CLI Pre-caching** | No | Yes (`npm run cache`, `npm run cache:list`) |
 

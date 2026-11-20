@@ -350,6 +350,15 @@ export class CacheManager {
         }
       }
 
+      if (force) {
+        const assetsDir = path.join(dirPath, "assets");
+        try {
+          await fs.rm(assetsDir, { recursive: true, force: true });
+        } catch {
+          // ignore
+        }
+      }
+
       try {
         const remaining = await fs.readdir(dirPath);
         if (remaining.length === 0) {
@@ -541,5 +550,79 @@ export class CacheManager {
 
     results.sort((a, b) => (b.fetchedAt > a.fetchedAt ? 1 : -1));
     return results;
+  }
+
+  /**
+   * Returns the assets cache directory for a specific fileKey.
+   */
+  public getAssetsDir(fileKey: string): string {
+    return path.join(this.getFileDir(fileKey), "assets");
+  }
+
+  /**
+   * Looks up a previously cached asset binary (raster image by imageRef or SVG by node/component key).
+   */
+  public async getCachedAsset(
+    fileKey: string,
+    kind: "image" | "svg",
+    key: string
+  ): Promise<{ path: string; extension: string; sizeBytes: number } | null> {
+    const subDir = kind === "image" ? "refs" : "nodes";
+    const dir = path.join(this.getAssetsDir(fileKey), subDir);
+    const safeKey = this.sanitizeSegment(key);
+
+    if (kind === "svg") {
+      const filePath = path.join(dir, `${safeKey}.svg`);
+      try {
+        const stat = await fs.stat(filePath);
+        if (stat.isFile()) {
+          return { path: filePath, extension: "svg", sizeBytes: stat.size };
+        }
+      } catch {
+        return null;
+      }
+      return null;
+    }
+
+    // For raster images, check known extensions
+    const extensions = ["png", "jpg", "webp", "gif", "jpeg"];
+    for (const ext of extensions) {
+      const filePath = path.join(dir, `${safeKey}.${ext}`);
+      try {
+        const stat = await fs.stat(filePath);
+        if (stat.isFile()) {
+          return { path: filePath, extension: ext, sizeBytes: stat.size };
+        }
+      } catch {
+        // try next extension
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Saves a downloaded asset binary to the disk cache.
+   */
+  public async saveCachedAsset(
+    fileKey: string,
+    kind: "image" | "svg",
+    key: string,
+    data: Buffer,
+    extension: string
+  ): Promise<{ path: string; extension: string; sizeBytes: number }> {
+    const subDir = kind === "image" ? "refs" : "nodes";
+    const dir = path.join(this.getAssetsDir(fileKey), subDir);
+    await fs.mkdir(dir, { recursive: true });
+
+    const safeKey = this.sanitizeSegment(key);
+    const cleanExt = extension.replace(/^\./, "").toLowerCase() || (kind === "svg" ? "svg" : "png");
+    const filePath = path.join(dir, `${safeKey}.${cleanExt}`);
+
+    await fs.writeFile(filePath, data);
+    return {
+      path: filePath,
+      extension: cleanExt,
+      sizeBytes: data.length,
+    };
   }
 }

@@ -16,6 +16,7 @@ import {
   createFigmaBlockServer,
   handleCacheDesign,
   handleCleanCache,
+  handleGetAssets,
   handleGetBlock,
   handleGetOutline,
   handleListCache,
@@ -686,6 +687,7 @@ describe("Cache-First & Subtree Lookup Scenarios", () => {
     assert.deepEqual(toolNames, [
       "cache_design",
       "clean_cache",
+      "get_assets",
       "get_block",
       "get_outline",
       "list_cache",
@@ -749,5 +751,174 @@ describe("Cache-First & Subtree Lookup Scenarios", () => {
 
     await mcpClient.close();
     await server.close();
+  });
+
+  it("Scenario 12: get_assets & cache_design(includeAssets=true) — deduplication, disk cache, outputDir copy, and 0 API calls on cache hit", async () => {
+    const assetPageNode: FigmaNode = {
+      id: "0:1",
+      name: "Assets Page",
+      type: "CANVAS",
+      children: [
+        {
+          id: "50:1",
+          name: "Hero Block",
+          type: "FRAME",
+          absoluteBoundingBox: { x: 0, y: 0, width: 1440, height: 600 },
+          children: [
+            {
+              id: "50:2",
+              name: "Hero Banner",
+              type: "RECTANGLE",
+              absoluteBoundingBox: { x: 0, y: 0, width: 800, height: 400 },
+              fills: [{ type: "IMAGE", imageRef: "img_ref_hero", scaleMode: "FILL" }],
+            },
+            {
+              id: "50:3",
+              name: "Hero Banner Duplicate",
+              type: "RECTANGLE",
+              absoluteBoundingBox: { x: 0, y: 400, width: 400, height: 200 },
+              fills: [{ type: "IMAGE", imageRef: "img_ref_hero", scaleMode: "FILL" }],
+            },
+            {
+              id: "50:4",
+              name: "Arrow Icon",
+              type: "INSTANCE",
+              componentId: "comp_arrow_1",
+              absoluteBoundingBox: { x: 10, y: 10, width: 24, height: 24 },
+              children: [
+                {
+                  id: "50:5",
+                  name: "Vector",
+                  type: "VECTOR",
+                  absoluteBoundingBox: { x: 10, y: 10, width: 24, height: 24 },
+                },
+              ],
+            },
+            {
+              id: "50:6",
+              name: "Arrow Icon Copy",
+              type: "INSTANCE",
+              componentId: "comp_arrow_1",
+              absoluteBoundingBox: { x: 50, y: 10, width: 24, height: 24 },
+              children: [
+                {
+                  id: "50:7",
+                  name: "Vector",
+                  type: "VECTOR",
+                  absoluteBoundingBox: { x: 50, y: 10, width: 24, height: 24 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    };
+
+    const fakePng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 1, 2, 3]);
+    const fakeSvg = Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"></svg>');
+
+    const figmaApiCalls: string[] = [];
+    const s3Downloads: string[] = [];
+
+    const mockFetch = (async (input: string | URL) => {
+      const url = String(input);
+      if (url.startsWith("https://api.figma.com/")) {
+        figmaApiCalls.push(url);
+        if (url.includes("/nodes?ids=")) {
+          return new Response(
+            JSON.stringify({
+              name: "Assets File",
+              nodes: { "0:1": { document: assetPageNode } },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (url.endsWith("/images")) {
+          return new Response(
+            JSON.stringify({
+              meta: {
+                images: {
+                  img_ref_hero: "https://s3.mock.local/hero.png",
+                },
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+        if (url.includes("/v1/images/") && url.includes("format=svg")) {
+          return new Response(
+            JSON.stringify({
+              images: {
+                "50:4": "https://s3.mock.local/arrow.svg",
+              },
+            }),
+            { status: 200, headers: { "Content-Type": "application/json" } }
+          );
+        }
+      }
+
+      if (url === "https://s3.mock.local/hero.png") {
+        s3Downloads.push(url);
+        return new Response(fakePng, {
+          status: 200,
+          headers: { "Content-Type": "image/png" },
+        });
+      }
+      if (url === "https://s3.mock.local/arrow.svg") {
+        s3Downloads.push(url);
+        return new Response(fakeSvg, {
+          status: 200,
+          headers: { "Content-Type": "image/svg+xml" },
+        });
+      }
+
+      return new Response("Not Found", { status: 404 });
+    }) as typeof fetch;
+
+    const cache = new CacheManager(tmpDir);
+    const client = new FigmaClient({
+      cacheManager: cache,
+      token: "test-token",
+      fetchImpl: mockFetch,
+    });
+
+    // 1. Cache whole page with includeAssets: true -> 1 nodes call + 1 /images call + 1 svg batch call
+    const cacheOutput = await handleCacheDesign(
+      {
+        url: "https://www.figma.com/design/FileAssets/Design?node-id=0-1",
+        includeAssets: true,
+      },
+      client
+    );
+    assert.match(cacheOutput, /Extracted Figma Assets \(2\)/);
+    assert.equal(figmaApiCalls.length, 3, "1 node fetch + 1 raster images map + 1 SVG batch");
+    assert.equal(s3Downloads.length, 2, "Deduplicated: 1 PNG + 1 SVG downloaded from S3");
+
+    // 2. Now request assets for a nested block and copy to outputDir -> 0 Figma API calls!
+    const outDir = path.join(tmpDir, "exported-assets");
+    const blockAssetsOutput = await handleGetAssets(
+      {
+        url: "https://www.figma.com/design/FileAssets/Design?node-id=50-1",
+        outputDir: outDir,
+      },
+      client
+    );
+    assert.equal(figmaApiCalls.length, 3, "0 new Figma API calls when reading from cache");
+    assert.match(blockAssetsOutput, /From Cache \(0 API calls\):\*\* 2/);
+
+    const exportedFiles = (await fs.readdir(outDir)).sort();
+    assert.deepEqual(exportedFiles, ["arrow-icon.svg", "hero-banner.png"]);
+
+    // 3. Request a single image node link directly -> 0 Figma API calls
+    const singleAssetOutput = await handleGetAssets(
+      {
+        url: "https://www.figma.com/design/FileAssets/Design?node-id=50-2",
+        types: "images",
+      },
+      client
+    );
+    assert.equal(figmaApiCalls.length, 3, "Still 0 new Figma API calls");
+    assert.match(singleAssetOutput, /Extracted Figma Assets \(1\)/);
+    assert.match(singleAssetOutput, /Hero Banner/);
   });
 });
